@@ -19,7 +19,7 @@
 /*.Rcheck/
 
 # RStudio files
-.Rproj
+.Rproj.user
 
 # produced vignettes
 vignettes/*.html
@@ -48,5 +48,4 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
-# manuscript pdf
 Submission/
