@@ -89,18 +89,24 @@ cap_stats <- function(caphist){
 ###capture history  summaries
 captures_table <- data.frame(t(sapply(Mongolia1,cap_stats))) 
 
+library(ggspatial)
 
-
-ggplot(mesh[[1]], aes(x = x, y = y))+
+mk = ggplot(mesh[[1]], aes(x = x, y = y))+
   geom_tile(aes(fill = covariates(mesh[[1]])$value))+
-  scale_fill_viridis_c(name = 'Occupancy probability', limits = c(0,1))+
-  geom_point(data = traps(Mongolia1)[[1]], shape = 3, col = 'firebrick')+
+  scale_fill_viridis_c(name = 'Occupancy\nprobability', limits = c(0,1))+
+  geom_point(data = traps(Mongolia1)[[1]], shape = 3, col = 'firebrick',stroke = 1.5)+
   coord_equal()+
-  theme_void()
+  theme_void()+
+  annotation_scale()
 
-ggplot(mesh[[2]], aes(x = x, y = y))+
+tost = ggplot(mesh[[2]], aes(x = y, y = x))+
   geom_tile(aes(fill = covariates(mesh[[2]])$value))+
-  scale_fill_viridis_c(name = 'Occupancy probability', limits = c(0,1))+
-  geom_point(data = traps(Mongolia1)[[2]], shape = 3, col = 'firebrick')+
+  scale_fill_viridis_c(name = 'Occupancy\nprobability', limits = c(0,1))+
+  geom_point(data = traps(Mongolia1)[[2]], shape = 3, col = 'firebrick',stroke = 1.5)+
   coord_equal()+
-  theme_void()
+  theme_void()+
+  annotation_scale()
+
+ggarrange(mk,tost,nrow = 1,labels = c('A','B'),common.legend = T,legend = 'right')
+
+ggsave('CaseStudy/site_plots.png', dpi = 300, width = 9, height = 6)
