@@ -47,15 +47,17 @@ n_ghosts(hp_hd_capthist)
 ### Read model fit objects
 lp_ld_scr = readRDS('Simulations/simulations_scr_lp_ld.rds')
 lp_ld_scr2 = readRDS('Simulations/simulations_scr2_lp_ld.rds')
+
 lp_hd_scr = readRDS('Simulations/simulations_scr_lp_hd.rds')
 lp_hd_scr2 = readRDS('Simulations/simulations_scr2_lp_hd.rds')
+
 hp_ld_scr = readRDS('Simulations/simulations_scr_hp_ld.rds')
 hp_ld_scr2 = readRDS('Simulations/simulations_scr2_hp_ld.rds')
+
 hp_hd_scr = readRDS('Simulations/simulations_scr_hp_hd.rds')
 hp_hd_scr2 = readRDS('Simulations/simulations_scr2_hp_hd.rds')
 
-
-### Function to compute bias of estimates
+### Function to compute relative bias of estimates
 bias_dat <- function(scr_fit,
                      scr2_fit,
                      mesh,
@@ -65,7 +67,7 @@ bias_dat <- function(scr_fit,
                      true_d1 = .1,
                      nsims = 100){
   
-  ### Extract maximum like
+  ### Extract maximum likelihood estimates
   scr_coefs <- data.frame(t(sapply(scr_fit, function(x) coef(x)[,1]))) %>% mutate(mod = 'scr',trueD = true_D,d1 = true_d1,true_lambda0 = true_lambda0,true_sigma = true_sigma,ghost_prop = rep(c(0,.1,.2,.3),each = nsims))
   
   scr2_coefs <- data.frame(t(sapply(scr2_fit, function(x) x$estimate))) %>% mutate(mod = 'scr2',trueD = true_D,d1 = true_d1,true_lambda0 = true_lambda0,true_sigma = true_sigma,ghost_prop = rep(c(0,.1,.2,.3),each = nsims))
@@ -108,7 +110,7 @@ bias_dat <- function(scr_fit,
   return(mod_bias)
 }
 
-
+####Compute relative bias for each simulation scenario
 
 lp_ld_dat = bias_dat(scr_fit = lp_ld_scr,
                      scr2_fit = lp_ld_scr2,
@@ -146,140 +148,6 @@ all_sims$sim_name = factor(all_sims$sim_name, labels = c(expression('D = 0.06'~l
                                                          expression('D = 0.03'~lambda[0]~'= 2'),
                                                          expression('D = 0.03'~lambda[0]~'= 1')))
 
-
-################################
-#### CI COverage
-
-
-EN_f = function(D,mesh){
-  sum(exp(D[1] + D[2]*covariates(mesh)$cov)*attr(mesh,'area'))
-}
-
-
-CI_coverage_dat <- function(scr_fit,
-                            scr2_fit,
-                            mesh,
-                            true_D,
-                            true_lambda0, 
-                            true_sigma = 300,
-                            true_d1 = .1,
-                            nsims = 100){
-  
-  scr_coefs <- data.frame(t(sapply(scr_fit, function(x) coef(x)[,1]))) %>% mutate(mod = 'scr',trueD = true_D,d1 = true_d1,true_lambda0 = true_lambda0,true_sigma = true_sigma,ghost_prop = rep(c(0,.1,.2,.3),each = nsims))
-  
-  scr2_coefs <- data.frame(t(sapply(scr2_fit, function(x) x$estimate))) %>% mutate(mod = 'scr2',trueD = true_D,d1 = true_d1,true_lambda0 = true_lambda0,true_sigma = true_sigma,ghost_prop = rep(c(0,.1,.2,.3),each = nsims))
-  
-  colnames(scr_coefs)[1:4] = c('D','D.value','lambda0','sigma')
-  colnames(scr2_coefs) = colnames(scr_coefs)
-  
-  E_N = sapply(mesh, function(x) sum(exp(log(true_D) + true_d1*covariates(x)$cov)*attr(x,'area')))
-  
-  
-  scr_EN_dat = cbind(coef = 'EN',t(sapply(scr_fit, function(x) region.N(x)[1,]))[,c('estimate','lcl','ucl')])
-  
-  scr2_EN = sapply(1:nrow(scr2_coefs), function(x) EN_f(as.numeric(scr2_coefs[x,1:2]),mesh[[((x-1) %% nsims) + 1]]))  
-  scr2_vcv = lapply(scr2_fit, function(x) solve(x$hessian))
-  scr2_grad = t(sapply(1:nrow(scr2_coefs),function(x) nlme::fdHess(as.numeric(scr2_coefs[x,1:2]),EN_f, mesh = mesh[[((x-1) %% nsims) + 1]])$gradient))
-  scr2_EN_se = sapply(1:nrow(scr2_coefs), function(x) sqrt(scr2_grad[x,]%*%scr2_vcv[[x]][1:2,1:2]%*%scr2_grad[x,]))
-  scr2_EN_df = data.frame(estimate = scr2_EN,SE.estimate = scr2_EN_se)
-  scr2_EN_dat = cbind(coef = 'EN',secr:::add.cl(df = scr2_EN_df, alpha = .05,loginterval = T)[,c('estimate','lcl','ucl')])
-  
-  scr_cis = lapply(1:length(scr_fit), function(x) cbind(rbind(scr_EN_dat[x,],predict(scr_fit[[x]])[2:3,c(2,4,5)] %>% rownames_to_column(var = 'coef')),true = c(E_N[((x-1) %% nsims) + 1],true_lambda0,true_sigma)))
-  scr2_cis = lapply(1:nrow(scr2_coefs), function(x){
-    se = sqrt(diag(scr2_vcv[[x]]))[3:4]
-    cbind(
-      rbind(scr2_EN_dat[x,],
-            data.frame(coef = c('lambda0','sigma'),
-                       estimate = exp(as.numeric(scr2_coefs[x,3:4])),
-                       lcl = exp(as.numeric(scr2_coefs[x,3:4]) - 1.96*se),
-                       ucl = exp(as.numeric(scr2_coefs[x,3:4]) + 1.96*se))),
-      true = c(E_N[((x-1) %% nsims) + 1],true_lambda0,true_sigma))
-  })
-  
-  scr_ci_coverage = data.frame(t(sapply(scr_cis,function(df){
-    as.numeric((df$true > df$lcl) & (df$true < df$ucl))
-  }))) %>%  mutate(mod = 'scr',ghost_prop = rep(c(0,.1,.2,.3),each = nsims))
-  
-  scr2_ci_coverage = data.frame(t(sapply(scr2_cis,function(df){
-    as.numeric((df$true > df$lcl) & (df$true < df$ucl))
-  }))) %>%  mutate(mod = 'scr2',ghost_prop = rep(c(0,.1,.2,.3),each = nsims))
-  
-  colnames(scr_ci_coverage)[1:3] = colnames(scr2_ci_coverage)[1:3] = c('EN','lambda0','sigma')
-  
-  scr_mod_conv = sapply(scr_fit, function(x) x$fit$code)
-  scr2_mod_conv = sapply(scr2_fit, function(x) x$code)
-  
-  all_dat = bind_rows(scr_ci_coverage %>% 
-              mutate(conv = scr_mod_conv) %>% 
-              filter(conv < 3) %>% 
-              pivot_longer(1:3,names_to = 'par') %>% 
-              group_by(ghost_prop,par) %>% 
-              summarise(cic = round(sum(value)/n()*100,0)) %>% 
-              mutate(mod = 'scr'),
-            
-            scr2_ci_coverage %>% 
-              mutate(conv = scr2_mod_conv) %>% 
-              filter(conv < 3) %>% 
-              pivot_longer(1:3,names_to = 'par') %>% 
-              group_by(ghost_prop,par) %>% 
-              summarise(cic = round(sum(value)/n()*100,0))%>% 
-              mutate(mod = 'scr2'))
-  all_dat$par <- factor(all_dat$par,labels = c(expression('E[N'~']'),bquote(lambda[0]),bquote(sigma)))
-  
-  return(all_dat)
-}
-
-lp_ld_ci = CI_coverage_dat(scr_fit = lp_ld_scr,
-                         scr2_fit = lp_ld_scr2,
-                         mesh = mesh,
-                         true_D = lowD,
-                         true_lambda0 = low_lambda0) %>% 
-  mutate(sim_name = 'lp_ld')
-
-lp_hd_ci = CI_coverage_dat(scr_fit = lp_hd_scr,
-                         scr2_fit = lp_hd_scr2,
-                         mesh = mesh,
-                         true_D = lowD,
-                         true_lambda0 = high_lambda0) %>% 
-  mutate(sim_name = 'lp_hd')
-
-hp_ld_ci = CI_coverage_dat(scr_fit = hp_ld_scr,
-                         scr2_fit = hp_ld_scr2,
-                         mesh = mesh,
-                         true_D = highD,
-                         true_lambda0 = low_lambda0) %>% 
-  mutate(sim_name = 'hp_ld')
-
-hp_hd_ci = CI_coverage_dat(scr_fit = hp_hd_scr,
-                         scr2_fit = hp_hd_scr2,
-                         mesh = mesh,
-                         true_D = highD,
-                         true_lambda0 = high_lambda0) %>% 
-  mutate(sim_name = 'hp_hd')
-
-
-
-all_ci = bind_rows(lp_ld_ci,lp_hd_ci,hp_ld_ci,hp_hd_ci) 
-
-all_ci$sim_name = factor(all_ci$sim_name, labels = c(expression('D = 0.06'~lambda[0]~'= 2'),
-                                                         expression('D = 0.06'~lambda[0]~'= 1'),
-                                                         expression('D = 0.03'~lambda[0]~'= 2'),
-                                                         expression('D = 0.03'~lambda[0]~'= 1')))
-
-all_ci %>% 
-  ggplot(aes(x = ghost_prop, y = cic/100, group = mod, fill = mod)) +
-  scale_fill_discrete(name = 'Model',type = c('firebrick','navyblue'))+
-  geom_bar(position = position_dodge(width = .05),  show.legend = T, stat = 'identity', width = .04)+
-  geom_hline(yintercept = .95, linetype = 2)+
-  scale_x_continuous(labels = scales::percent)+
-  scale_y_continuous(labels = scales::percent)+
-  facet_grid(par~sim_name,labeller = label_parsed)+
-  ylab('Confidence Interval Coverage')+
-  xlab('')+
-  theme_bw()+
-  theme(text = element_text(size = 15),strip.text.y = element_text(angle = 0, face = 'bold'),plot.margin = unit(c(1,0,0,1),units = 'cm'))
-
-ggsave('Simulations/cic_sim_results.png',width = 8, height = 5, dpi =300)
 
 bias_plot = all_sims %>% 
   ggplot(aes(x = ghost_prop, y = Bias, group = mod, col = mod, shape = mod)) +
@@ -413,21 +281,127 @@ log_mse_plot = all_sims %>%
   theme_bw()+
   theme(text = element_text(size = 15),strip.text.y = element_text(angle = 0, face = 'bold'),plot.margin = unit(c(1,0,0,1),units = 'cm'))
 
-var_plot = all_sims %>% 
-  ggplot(aes(x = ghost_prop, y = var, group = mod, col = mod, shape = mod)) +
+############compute SE's of parameter estimates#####
+
+
+predN = function(par,mesh){
+  sum(exp(par[1] + par[2]*covariates(mesh)$cov)*attr(mesh,'area'))
+}
+
+real_se = function(par,hessian,mesh){
+  vcv = solve(hessian)
+  grad = nlme::fdHess(par[1:2], predN,mesh = mesh)$gradient
+  EN_se = sqrt(grad%*%vcv[1:2,1:2]%*%grad)
+  lambda0_se = sqrt(exp(par[3])^2*vcv[3,3])
+  sigma_se = sqrt(exp(par[4])^2*vcv[4,4])
+  
+  return(data.frame(EN_se = EN_se,lambda0_se = lambda0_se, sigma_se = sigma_se))
+}
+
+
+par_se_dat <- function(scr_fit,
+                       scr2_fit,
+                       mesh,
+                       true_D,
+                       true_lambda0, 
+                       true_sigma = 300,
+                       true_d1 = .1,
+                       nsims = 100){
+  
+  scr_coefs <- data.frame(t(sapply(scr_fit, function(x) coef(x)[,1]))) %>% mutate(mod = 'scr',trueD = true_D,d1 = true_d1,true_lambda0 = true_lambda0,true_sigma = true_sigma,ghost_prop = rep(c(0,.1,.2,.3),each = nsims))
+  
+  scr2_coefs <- data.frame(t(sapply(scr2_fit, function(x) x$estimate))) %>% mutate(mod = 'scr2',trueD = true_D,d1 = true_d1,true_lambda0 = true_lambda0,true_sigma = true_sigma,ghost_prop = rep(c(0,.1,.2,.3),each = nsims))
+  
+  colnames(scr_coefs)[1:4] = c('D','D.value','lambda0','sigma')
+  colnames(scr2_coefs) = colnames(scr_coefs)
+  
+  scr_real_se <- data.frame(t(sapply(1:length(scr_fit), function(x) real_se(scr_fit[[x]]$fit$estimate,scr_fit[[x]]$fit$hessian,mesh[[((x-1) %% nsims) + 1]])))) %>% mutate(mod = 'scr',ghost_prop = rep(c(0,.1,.2,.3),each = nsims))
+  scr2_real_se <- data.frame(t(sapply(1:length(scr2_fit), function(x) real_se(scr2_fit[[x]]$estimate,scr2_fit[[x]]$hessian,mesh[[((x-1) %% nsims) + 1]])))) %>% mutate(mod = 'scr2',ghost_prop = rep(c(0,.1,.2,.3),each = nsims))
+  
+  E_N = sapply(mesh, function(x) sum(exp(log(true_D) + true_d1*covariates(x)$cov)*attr(x,'area')))
+  
+  scr_mod_EN = sapply(1:nrow(scr_coefs), function(x) sum(exp(scr_coefs[x,]$D + scr_coefs[x,]$D.value*covariates(mesh[[((x-1) %% nsims) + 1]])$cov)*attr(mesh[[((x-1) %% nsims) + 1]],'area')))
+  scr2_mod_EN = sapply(1:nrow(scr2_coefs), function(x) sum(exp(scr2_coefs[x,]$D + scr_coefs[x,]$D.value*covariates(mesh[[((x-1) %% nsims) + 1]])$cov)*attr(mesh[[((x-1) %% nsims) + 1]],'area')))
+  
+  scr_mod_conv = sapply(scr_fit, function(x) x$fit$code)
+  scr2_mod_conv = sapply(scr2_fit, function(x) x$code)
+  
+  mod_real.se = rbind(scr_real_se,scr2_real_se) %>%
+    mutate(E_N =  rep(E_N,8),
+           mod_EN = c(scr_mod_EN,scr2_mod_EN),
+           conv = c(scr_mod_conv,scr2_mod_conv)) %>%
+    filter(!is.na(mod_EN)) %>% 
+    filter(mod_EN < 5*E_N,conv < 3) %>% 
+    unnest(cols = c(EN_se, lambda0_se, sigma_se)) %>% 
+    group_by(mod,ghost_prop) %>%
+    summarise(EN_mean.se = mean(EN_se), EN_lcl.se = EN_mean.se - 1.96*sd(EN_se)/sqrt(n()),EN_ucl.se = EN_mean.se + 1.96*sd(EN_se)/sqrt(n()),
+              lambda0_mean.se = mean(lambda0_se), lambda0_lcl.se = lambda0_mean.se - 1.96*sd(lambda0_se)/sqrt(n()),lambda0_ucl.se = lambda0_mean.se + 1.96*sd(lambda0_se)/sqrt(n()),
+              sigma_mean.se = mean(sigma_se), sigma_lcl.se = sigma_mean.se - 1.96*sd(sigma_se)/sqrt(n()),sigma_ucl.se = sigma_mean.se + 1.96*sd(sigma_se)/sqrt(n())) %>%
+    pivot_longer(3:11,names_sep = '_',names_to = c('par','estimate')) %>%
+    pivot_wider(names_from = 'estimate',values_from = value) 
+  
+  mod_real.se$par <- factor(mod_real.se$par,labels = c(expression('E[N'~']'),bquote(lambda[0]),bquote(sigma)))
+  
+  return(mod_real.se)
+}
+
+lp_ld_dat = par_se_dat(scr_fit = lp_ld_scr,
+                       scr2_fit = lp_ld_scr2,
+                       mesh = mesh,
+                       true_D = lowD,
+                       true_lambda0 = low_lambda0) %>% 
+  mutate(sim_name = 'lp_ld')
+
+lp_hd_dat = par_se_dat(scr_fit = lp_hd_scr,
+                       scr2_fit = lp_hd_scr2,
+                       mesh = mesh,
+                       true_D = lowD,
+                       true_lambda0 = high_lambda0) %>% 
+  mutate(sim_name = 'lp_hd')
+
+hp_ld_dat = par_se_dat(scr_fit = hp_ld_scr,
+                       scr2_fit = hp_ld_scr2,
+                       mesh = mesh,
+                       true_D = highD,
+                       true_lambda0 = low_lambda0) %>% 
+  mutate(sim_name = 'hp_ld')
+
+hp_hd_dat = par_se_dat(scr_fit = hp_hd_scr,
+                       scr2_fit = hp_hd_scr2,
+                       mesh = mesh,
+                       true_D = highD,
+                       true_lambda0 = high_lambda0) %>% 
+  mutate(sim_name = 'hp_hd')
+
+
+
+all_sims = bind_rows(lp_ld_dat,lp_hd_dat,hp_ld_dat,hp_hd_dat) 
+
+all_sims$sim_name = factor(all_sims$sim_name, labels = c(expression('D = 0.06'~lambda[0]~'= 2'),
+                                                         expression('D = 0.06'~lambda[0]~'= 1'),
+                                                         expression('D = 0.03'~lambda[0]~'= 2'),
+                                                         expression('D = 0.03'~lambda[0]~'= 1')))
+
+se_plot <- all_sims %>% 
+  ggplot(aes(x = ghost_prop, y = mean.se, group = mod, col = mod, shape = mod)) +
   scale_color_discrete(name = 'Model',type = c('firebrick','navyblue'))+
   scale_shape_discrete(name = 'Model')+
   geom_point(position = position_dodge(width = .05), size = 3, show.legend = T)+
-  scale_x_continuous(labels = scales::percent)+
+  geom_errorbar(aes(ymax = ucl.se,ymin = lcl.se),position = position_dodge(width = .05), width = .01,show.legend = F)+
+  # geom_hline(yintercept = 0)+
+  # scale_x_continuous(labels = scales::percent)+
+  # scale_y_continuous(labels = scales::percent)+
   facet_grid(par~sim_name, scales = 'free',labeller = label_parsed)+
-  ylab('Variance')+
+  ylab('Standard Error')+
   xlab('')+
   theme_bw()+
   theme(text = element_text(size = 15),strip.text.y = element_text(angle = 0, face = 'bold'),plot.margin = unit(c(1,0,0,1),units = 'cm'))
 
-ggarrange(bias_plot,log_mse_plot,nrow = 2, common.legend = T, legend =  'bottom', labels = c('A','B'))
 
-ggsave('Simulations/sim_results.png',width = 8, height = 10, dpi =300)
+
+ggarrange(bias_plot,se_plot, log_mse_plot,nrow = 3, common.legend = T, legend =  'bottom', labels = c('A','B','C'))
+
+ggsave('Simulations/sim_results.png',width = 8, height = 15, dpi =300)
 
 
 
@@ -454,9 +428,9 @@ sim_capt_summaries <- function(pop,capthist){
 }
 
 tab1 = rbind(sim_capt_summaries(lp_pop, lp_ld_capthist) %>% mutate(scenario = 'lp_ld'),
-      sim_capt_summaries(lp_pop, lp_hd_capthist) %>% mutate(scenario = 'lp_hd'),
-      sim_capt_summaries(hp_pop, hp_ld_capthist) %>% mutate(scenario = 'hp_ld'),
-      sim_capt_summaries(hp_pop, hp_hd_capthist) %>% mutate(scenario = 'hp_hd'))
+             sim_capt_summaries(lp_pop, lp_hd_capthist) %>% mutate(scenario = 'lp_hd'),
+             sim_capt_summaries(hp_pop, hp_ld_capthist) %>% mutate(scenario = 'hp_ld'),
+             sim_capt_summaries(hp_pop, hp_hd_capthist) %>% mutate(scenario = 'hp_hd'))
 
 cap_stats <- function(caphist){
   data.frame(caphist) %>% 
@@ -466,7 +440,7 @@ cap_stats <- function(caphist){
     summarise(detections = n(), individuals = length(unique(ID)), single_detections = sum(dets == 1))
 }
 
-
+#### Hypothesis testing supplementary material
 
 p_values_sim <- function(scr2_fit,
                          capthist,

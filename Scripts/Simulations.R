@@ -137,7 +137,7 @@ lp_ld_scr_fits <- lapply(1:length(lp_ld_capthists_ghost), function(x) tryCatch(s
 
 saveRDS(lp_ld_scr_fits,'Simulations/simulations_scr_lp_ld.rds')
 
-lp_ld_min2_scr_fits <- lapply(1:length(lp_ld_capthists_ghost), function(x) tryCatch(scr2_lik(lp_ld_capthists_ghost[[x]],all_mesh[[x]],model = list(D~cov), detectfn = 'HHN',startparams = c(D = log(lowD),D.value = true_d1,lambda0 = log(low_lambda0), sigma = log(true_sigma)),simulations = T),error = function(e) NULL))
+lp_ld_min2_scr_fits <- lapply(1:length(lp_ld_capthists_ghost), function(x) tryCatch(scr2_lik(lp_ld_capthists_ghost[[x]],all_mesh[[x]],model = list(D~cov), detectfn = 'HHN',startparams = c(D = log(lowD),D.value = true_d1,lambda0 = log(low_lambda0), sigma = log(true_sigma)),simulations = T, hessian = T),error = function(e) NULL))
 
 saveRDS(lp_ld_min2_scr_fits,'Simulations/simulations_scr2_lp_ld.rds')
 
@@ -145,7 +145,7 @@ lp_hd_scr_fits <- lapply(1:length(lp_hd_capthists_ghost), function(x) tryCatch(s
 
 saveRDS(lp_hd_scr_fits,'Simulations/simulations_scr_lp_hd.rds')
 
-lp_hd_min2_scr_fits <- lapply(1:length(lp_hd_capthists_ghost), function(x) tryCatch(scr2_lik(lp_hd_capthists_ghost[[x]],all_mesh[[x]],model = list(D~cov), detectfn = 'HHN',startparams = c(D = log(lowD),D.value = true_d1,lambda0 = log(high_lambda0), sigma = log(true_sigma)),simulations = T),error = function(e) NULL))
+lp_hd_min2_scr_fits <- lapply(1:length(lp_hd_capthists_ghost), function(x) tryCatch(scr2_lik(lp_hd_capthists_ghost[[x]],all_mesh[[x]],model = list(D~cov), detectfn = 'HHN',startparams = c(D = log(lowD),D.value = true_d1,lambda0 = log(high_lambda0), sigma = log(true_sigma)),simulations = T, hessian = T),error = function(e) NULL))
 
 saveRDS(lp_hd_min2_scr_fits,'Simulations/simulations_scr2_lp_hd.rds')
 
@@ -153,7 +153,7 @@ hp_ld_scr_fits <- lapply(1:length(hp_ld_capthists_ghost), function(x) tryCatch(s
 
 saveRDS(hp_ld_scr_fits,'Simulations/simulations_scr_hp_ld.rds')
 
-hp_ld_min2_scr_fits <- lapply(1:length(hp_ld_capthists_ghost), function(x) tryCatch(scr2_lik(hp_ld_capthists_ghost[[x]],all_mesh[[x]],model = list(D~cov), detectfn = 'HHN',startparams = c(D = log(highD),D.value = true_d1,lambda0 = log(low_lambda0), sigma = log(true_sigma)),simulations = T),error = function(e) NULL))
+hp_ld_min2_scr_fits <- lapply(1:length(hp_ld_capthists_ghost), function(x) tryCatch(scr2_lik(hp_ld_capthists_ghost[[x]],all_mesh[[x]],model = list(D~cov), detectfn = 'HHN',startparams = c(D = log(highD),D.value = true_d1,lambda0 = log(low_lambda0), sigma = log(true_sigma)),simulations = T, hessian = T),error = function(e) NULL))
 
 saveRDS(hp_ld_min2_scr_fits,'Simulations/simulations_scr2_hp_ld.rds')
 
@@ -161,6 +161,6 @@ hp_hd_scr_fits <- lapply(1:length(hp_hd_capthists_ghost), function(x) tryCatch(s
 
 saveRDS(hp_hd_scr_fits,'Simulations/simulations_scr_hp_hd.rds')
 
-hp_hd_min2_scr_fits <- lapply(1:length(hp_hd_capthists_ghost), function(x) tryCatch(scr2_lik(hp_hd_capthists_ghost[[x]],all_mesh[[x]],model = list(D~cov), detectfn = 'HHN',startparams = c(D = log(highD),D.value = true_d1,lambda0 = log(high_lambda0), sigma = log(true_sigma)),simulations = T),error = function(e) NULL))
+hp_hd_min2_scr_fits <- lapply(1:length(hp_hd_capthists_ghost), function(x) tryCatch(scr2_lik(hp_hd_capthists_ghost[[x]],all_mesh[[x]],model = list(D~cov), detectfn = 'HHN',startparams = c(D = log(highD),D.value = true_d1,lambda0 = log(high_lambda0), sigma = log(true_sigma)),simulations = T, hessian = T),error = function(e) NULL))
 
 saveRDS(hp_hd_min2_scr_fits,'Simulations/simulations_scr2_hp_hd.rds')
