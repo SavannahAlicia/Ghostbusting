@@ -4,25 +4,21 @@ library(tidyverse)
 library(rlang)
 
 ##### Half normal encounter rate function
-
 lambda_hhn <- function(d,lambda0,sigma){
   return(lambda0*exp(-d^2/(2*(sigma^2))))
 }
 
 ##### Exponential encounter rate function
-
 lambda_hex <- function(d,lambda0,sigma){
   return(lambda0*exp(-d/sigma))
 }
 
-
-##### half normal detection function
+##### Half normal detection function
 g_hn <- function(d,g0,sigma){
   return(g0*exp(-d^2/(2*(sigma^2))))
 }
 
-
-##### Introduce ghosts as 
+##### Introduce ghosts  
 ##### 1. As some probability of detected individuals
 ##### 2. As some proportion of detected individuals
 ##### 3. As some fixed number n
@@ -30,57 +26,53 @@ g_hn <- function(d,g0,sigma){
 # alternatively, introduce as probability or proportion of detections
 # by substituting nrow(capthist) with sum(capthist)
 
-introduce_ghost <- function(capthist,n,type = 'proportion',noccasions = 1){
-  ###convert secr capture history file to dataframe
+introduce_ghost <- function(capthist, n, type = 'proportion', noccasions = 1){
+  ### Convert secr capture history file to dataframe
   capt <- data.frame(capthist)                
   
-  ###number of ghosts to generate
+  ### Number of ghosts to generate
   
-  if(type == 'probability')newg <- rbinom(1,nrow(capthist),n)
-  if(type == 'proportion')newg <- round(n*nrow(capthist),0)
+  if(type == 'probability') newg <- rbinom(1,nrow(capthist),n)
+  if(type == 'proportion') newg <- round(n*nrow(capthist),0)
   if(type == 'fixed') newg <- n
   
-  ###Remove single captures for which can't be made to ghosts to append back later
+  ### Remove single captures which can't be made into ghosts to append back later
   capt_sing <- capt %>% group_by(ID) %>% filter(n() == 1)
   
-  ###subset data to all individuals with more that 2 captures
+  ### Subset data to all individuals with more that 2 captures
   capt_plus <- capt %>% group_by(ID) %>% filter(n() > 1)
   
-  ###Change individual ID randomly for the number of ghosts to be created
+  ### Change individual ID randomly for the number of ghosts to be created
   capt_plus$ID[sample(1:nrow(capt_plus),newg)] <- paste0('ghost',1:newg)
   
-  ###Add back the single captures
+  ### Add back the single captures
   capt <- bind_rows(capt_sing,capt_plus) %>% data.frame()
   
-  ###convert back to a capthist object
-  capt <- make.capthist(captures = capt,traps = traps(capthist),fmt = 'trapID',noccasions = noccasions)
+  ### Convert back to a capthist object
+  capt <- make.capthist(captures = capt, traps = traps(capthist),
+                        fmt = 'trapID', noccasions = noccasions)
   return(capt)
 }
 
-
-###### remove single captures
-
+###### Remove single captures
 remove_single_captures <- function(capthist){
   return(capthist %>% data.frame() %>% 
            group_by(ID) %>% 
            filter(n()>1) %>% 
            data.frame() %>% 
-           make.capthist(captures = .,traps = traps(capthist),fmt = 'trapID')) 
+           make.capthist(captures = ., traps = traps(capthist), fmt = 'trapID')) 
 }
-
-
 
 modifymodel <- function(model, user_model){
   modifyList(model,user_model[intersect(names(model),names(user_model))]) 
 }
 
-
-
-scr2_lik <- function(capthist, mesh, detectfn = 'HHN', simulations = FALSE, model = NULL, startparams = NULL,hessian = F){
+scr2_lik <- function(capthist, mesh, detectfn = 'HHN', simulations = FALSE, 
+                     model = NULL, startparams = NULL, hessian = F){
   
   ## Define the standard formula
   correct_model = list(D~1,lambda0~1,sigma~1)
-  ##Name the list with the formulae
+  ## Name the list with the formulae
   names(correct_model) <- lapply(correct_model, f_lhs)
   
   ## Use initial parameters if provided
@@ -98,19 +90,19 @@ scr2_lik <- function(capthist, mesh, detectfn = 'HHN', simulations = FALSE, mode
   if(detectfn == 'HEX') lambda_x <- lambda_hex  ### Hazard exponential encounter rate
   
   ## Create design matrix
-  desmat <- lapply(model,model.matrix,data = data.frame(cbind(D = 1,lambda0 = 1,sigma = 1, covariates(mesh))))
+  desmat <- lapply(model, model.matrix, 
+                   data = data.frame(cbind(D = 1, lambda0 = 1, sigma = 1, covariates(mesh))))
   
   ## Calculate number of parameters
   npars = lapply(desmat,ncol)
   
-  ### extract number of individuals detected
+  ### Extract number of individuals detected
   n <- nrow(capthist)  
   
-  ### Area of each pixel
+  ### Area of each pixel in hectares
   a <- attr(mesh,'spacing')^2/100^2  
   
-  
-  ## Extract/Define usage
+    ## Extract/Define usage
   if (simulations == FALSE) {
     usage = usage(traps(capthist))
   }else{
@@ -120,7 +112,7 @@ scr2_lik <- function(capthist, mesh, detectfn = 'HHN', simulations = FALSE, mode
   ## Extract traps object
   traps = traps(capthist)
   
-  ## distance from traps to each mesh point
+  ## Distance from traps to each mesh point
   distmat = edist(traps,mesh) 
   
   ## Set up the parameter vector
@@ -138,7 +130,7 @@ scr2_lik <- function(capthist, mesh, detectfn = 'HHN', simulations = FALSE, mode
   }
   
   ## Vector of the index of each parameter
-  args.index = split(1:length(params),rep(c('D','lambda0','sigma'),times = c(npars$D,npars$lambda0,npars$sigma)))
+  args.index = split(1:length(params), rep(c('D','lambda0','sigma'), times = c(npars$D, npars$lambda0, npars$sigma)))
   
   ## Remove occasions 
   capthist = t(capthist[,1,])   ###Remove a dimension as not using occasions
@@ -156,41 +148,37 @@ scr2_lik <- function(capthist, mesh, detectfn = 'HHN', simulations = FALSE, mode
       lambda0 = exp(desmat$lambda0 %*% params[args.index$lambda0])
       sigma = exp(desmat$sigma %*% params[args.index$sigma])  
       
-      lambda_x_mat <- t(apply(t(distmat), 2,lambda_x ,lambda0 = lambda0,sigma = sigma)%*%diag(as.numeric(usage)))
+      lambda_x_mat <- t(apply(t(distmat), 2, lambda_x, lambda0 = lambda0, sigma = sigma) %*% diag(as.numeric(usage)))
       
-      lik_all_ind <- sapply(1:ncol(capthist),function(x) log(mean(exp(colSums(dpois(capthist[,x],lambda_x_mat,log = T)))*D*a)))
+      lik_all_ind <- sapply(1:ncol(capthist), function(x) log(mean(exp(colSums(dpois(capthist[,x], lambda_x_mat, log = T))) * D * a)))
       
       lam <- colSums(lambda_x_mat) 
       prob_no_capt <- exp(-lam) ### Probability of 0 encounters
       prob_sing_capt <- lam*exp(-lam) ### Probability of 1 encounter 
       prob_capt <- 1 - prob_no_capt - prob_sing_capt  ### probability of atleast 2 encounters
       
-      ### the full likelihood
+      ### The full likelihood
       loglik = - sum(D * a * prob_capt) - lfactorial(n) + sum(lik_all_ind)  
       
       return(-loglik)
     }
   })
   
-  args = list(f = optimiser,p = params,hessian = hessian, print.level = 1)
+  args = list(f = optimiser, p = params, hessian = hessian, print.level = 1)
   
   ## Run optimiser 
   mod = do.call(nlm,args)
   
   ## Output optimised parameters, lambda matrix and p.
-  
   return(mod)
-  
 }
 
-
-
-
-scr2_lik_binom <- function(capthist, mesh, simulations = FALSE, model = NULL, startparams = NULL,hessian = F){
+scr2_lik_binom <- function(capthist, mesh, simulations = FALSE, model = NULL, 
+                           startparams = NULL, hessian = F){
   
   ## Define the standard formula
-  correct_model = list(D~1,g0~1,sigma~1)
-  ##Name the list with the formulae
+  correct_model = list(D~1, g0~1, sigma~1)
+  ## Name the list with the formulae
   names(correct_model) <- lapply(correct_model, f_lhs)
   
   ## Use initial parameters if provided
@@ -205,17 +193,17 @@ scr2_lik_binom <- function(capthist, mesh, simulations = FALSE, model = NULL, st
   capthist <- remove_single_captures(capthist)
   
   ## Create design matrix
-  desmat <- lapply(model,model.matrix,data = data.frame(cbind(D = 1,g0 = 1,sigma = 1, covariates(mesh))))
+  desmat <- lapply(model, model.matrix, 
+                   data = data.frame(cbind(D = 1, g0 = 1, sigma = 1, covariates(mesh))))
   
   ## Calculate number of parameters
   npars = lapply(desmat,ncol)
   
-  ### extract number of individuals detected
+  ### Extract number of individuals detected
   n <- nrow(capthist)  
   
-  ### Area of each pixel
+  ### Area of each pixel in hectares
   a <- attr(mesh,'spacing')^2/100^2  
-  
   
   ## Extract/Define usage
   if (simulations == FALSE) {
@@ -227,7 +215,7 @@ scr2_lik_binom <- function(capthist, mesh, simulations = FALSE, model = NULL, st
   ## Extract traps object
   traps = traps(capthist)
   
-  ## distance from traps to each mesh point
+  ## Distance from traps to each mesh point
   distmat = edist(traps,mesh) 
   
   ## Set up the parameter vector
@@ -245,9 +233,9 @@ scr2_lik_binom <- function(capthist, mesh, simulations = FALSE, model = NULL, st
   }
   
   ## Vector of the index of each parameter
-  args.index = split(1:length(params),rep(c('D','g0','sigma'),times = c(npars$D,npars$g0,npars$sigma)))
+  args.index = split(1:length(params), rep(c('D','g0','sigma'),times = c(npars$D, npars$g0, npars$sigma)))
   
-  capthist1 = apply(capthist,c(1,3),sum)
+  capthist1 = apply(capthist, c(1,3), sum)
   
   ## Local function to optimise 
   optimiser <- local ({
@@ -258,34 +246,32 @@ scr2_lik_binom <- function(capthist, mesh, simulations = FALSE, model = NULL, st
       
       g_x_mat <- t(apply(t(distmat), 2, g_hn ,g0 = g0,sigma = sigma))
       
-      lik_all_ind <- sapply(1:nrow(capthist1),function(i)
-        log(mean(exp(colSums(dbinom(capthist1[i,],ncol(capthist),g_x_mat,log = T)))*D*a)))
+      lik_all_ind <- sapply(1:nrow(capthist1), function(i)
+        log(mean(exp(colSums(dbinom(capthist1[i,], ncol(capthist), g_x_mat, log = T))) * D * a)))
       
       haz = -log(1-g_x_mat)
-      lam <- ncol(capthist)*colSums(haz) 
-      prob_capt <- 1 - exp(-lam) - lam*exp(-lam)### Probability of 0 encounters
+      lam <- ncol(capthist) * colSums(haz) 
+      prob_capt <- 1 - exp(-lam) - lam * exp(-lam)### Probability of 0 encounters
       
-      ### the full likelihood
+      ### The full likelihood
       loglik = - sum(D * a * prob_capt) - lfactorial(n) + sum(lik_all_ind)  
       
       return(-loglik)
     }
   })
   
-  args = list(f = optimiser,p = params,hessian = hessian, print.level = 1)
+  args = list(f = optimiser, p = params, hessian = hessian, print.level = 1)
   
   ## Run optimiser 
   mod = do.call(nlm,args)
   
   ## Output optimised parameters, g matrix and p.
-  
   return(mod)
 }
 
 
 
 ##### Simulate capture histories
-
 simulate_scr_files <- function(spacing = NULL,        #spacing between mesh points
                                lambda0 = NULL,        
                                g0 = NULL,
@@ -296,14 +282,18 @@ simulate_scr_files <- function(spacing = NULL,        #spacing between mesh poin
                                trap_spacing = NULL,   # Spacing between traps in grid
                                spatial_smooth = 10){  # Spacial covariate smooth factor
   
-  #Define spacing between traps as is recommended
+  # Define spacing between traps as is recommended
   if(is.null(trap_spacing)) trap_spacing = 1.5*sigma
   
-  #Create trapping grid
-  raw_trap = expand.grid(x = seq( - ((nx_traps-1)*trap_spacing/2), ((nx_traps-1)*trap_spacing/2),length.out = nx_traps),
-                         y = seq(- ((nx_traps-1)*trap_spacing/2),((nx_traps-1)*trap_spacing/2),length.out = nx_traps))
+  # Create trapping grid
+  raw_trap = expand.grid(x = seq( -((nx_traps - 1) * trap_spacing/2), 
+                                  ((nx_traps - 1) * trap_spacing/2),
+                                  length.out = nx_traps),
+                         y = seq(-((nx_traps - 1) * trap_spacing/2),
+                                 ((nx_traps - 1) * trap_spacing/2),
+                                 length.out = nx_traps))
   
-  ### Chnage detector type based on specified model
+  ### Change detector type based on specified model
   if(is.null(lambda0) == is.null(g0)) stop('Provide either lambda0 or g0')
   
   if(is.null(lambda0) == F){
@@ -315,7 +305,7 @@ simulate_scr_files <- function(spacing = NULL,        #spacing between mesh poin
   }
   
   ## Create trap object
-  traps = read.traps(data = raw_trap %>% data.frame(.,row.names = paste(1:nrow(raw_trap),'_trap',sep = '')), detector = detector)
+  traps = read.traps(data = raw_trap %>% data.frame(., row.names = paste(1:nrow(raw_trap), '_trap', sep = '')), detector = detector)
   
   ## Create mesh object at recommended buffer of 4*sigma
   mesh = make.mask(traps, buffer = 4*sigma, spacing = spacing)
@@ -331,25 +321,27 @@ simulate_scr_files <- function(spacing = NULL,        #spacing between mesh poin
     ## Create spatial covariate and smooth with a gaussian kernel
     distmat = as.matrix(dist(mesh))
     
-    V = exp(-distmat/(spacing*spatial_smooth))
+    V = exp(-distmat/(spacing * spatial_smooth))
     
-    run = runif(nrow(mesh),min = -1.5,max = 1.5)
+    run = runif(nrow(mesh), min = -1.5, max = 1.5)
     
-    cov = t(chol(V))%*%run
+    cov = t(chol(V)) %*% run
     
     rm(distmat,V)
     
     covariates(mesh)$cov = cov
     set.seed(NULL)
     
-    #simulate population
-    sim_pops = sim.popn(D = exp(log(D) + d.cov*cov), model2D = 'IHP', core = mesh)
+    # Simulate population
+    sim_pops = sim.popn(D = exp(log(D) + d.cov * cov), model2D = 'IHP', core = mesh)
   }
   
-  #simulate capture hisotry
-  capthist = sim.capthist(traps,sim_pops,detectfn = detectfn,detectpar = list(sigma = sigma,lambda0 = lambda0),noccasions = 1,renumber = F)
+  # Simulate capture hisotry
+  capthist = sim.capthist(traps, sim_pops, detectfn = detectfn, 
+                          detectpar = list(sigma = sigma,lambda0 = lambda0),
+                          noccasions = 1, renumber = F)
   
-  return(list(mesh = mesh, pop = sim_pops,capthist = capthist))
+  return(list(mesh = mesh, pop = sim_pops, capthist = capthist))
 }
 
 
